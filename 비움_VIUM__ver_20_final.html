@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>비움(VIUM) — 급식 잔반 절감 ESG 프로젝트</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.5/dist/teachablemachine-image.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg: #F1F4EF;
+    --panel: #FFFFFF;
+    --ink: #16241C;
+    --ink-soft: #4C5B51;
+    --line: #DCE3D8;
+    --teal: #0B5D4B;
+    --teal-deep: #073B2F;
+    --mustard: #E3A008;
+    --mustard-soft: #FCEBC5;
+    --tray: #D8D3C8;
+    --danger: #B3441E;
+    --radius: 14px;
+    --shadow: 0 6px 24px rgba(11,93,75,0.10);
+    --font-display: "Fraunces", Georgia, serif;
+    --font-body: "Inter", -apple-system, sans-serif;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);}
+  h1,h2,h3{font-family:var(--font-display);font-weight:700;margin:0;}
+
+  .app{max-width:1080px;margin:0 auto;padding:0 20px 80px;}
+
+  header.top{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:26px 0 18px;flex-wrap:wrap;gap:12px;
+  }
+  .brand{display:flex;align-items:center;gap:12px;}
+  .plate-mark{width:40px;height:40px;border-radius:50%;background:conic-gradient(var(--teal) 0deg, var(--teal) 0deg, var(--mustard-soft) 0deg);
+    border:3px solid var(--teal-deep);flex-shrink:0;}
+  .brand h1{font-size:22px;color:var(--teal-deep);letter-spacing:-0.02em;}
+  .brand p{margin:2px 0 0;font-size:12.5px;color:var(--ink-soft);}
+
+  .header-right{display:flex;align-items:center;gap:10px;}
+  .credit-pill{
+    background:var(--teal-deep);color:#fff;padding:10px 18px;border-radius:999px;
+    display:flex;align-items:center;gap:8px;font-weight:600;box-shadow:var(--shadow);
+  }
+  .credit-pill span.num{font-family:var(--font-display);font-size:20px;color:var(--mustard-soft);}
+  .user-chip{background:var(--panel);border:1px solid var(--line);padding:9px 14px;border-radius:999px;font-size:13px;font-weight:600;color:var(--ink-soft);box-shadow:var(--shadow);}
+  .user-chip b{color:var(--teal-deep);}
+
+  nav.tabs{display:flex;gap:6px;background:var(--panel);padding:6px;border-radius:12px;box-shadow:var(--shadow);margin-bottom:22px;flex-wrap:wrap;}
+  nav.tabs button{
+    flex:1;min-width:110px;border:none;background:transparent;padding:11px 10px;border-radius:999px;
+    font-family:var(--font-body);font-weight:600;font-size:14px;color:var(--ink-soft);cursor:pointer;transition:.15s;
+  }
+  nav.tabs button.active{background:var(--teal);color:#fff;}
+  nav.tabs button:hover:not(.active){background:var(--bg);}
+
+  .panel{background:var(--panel);border-radius:var(--radius);padding:24px;box-shadow:var(--shadow);margin-bottom:18px;}
+  .panel h2{font-size:20px;color:var(--teal-deep);margin-bottom:4px;}
+  .subtext{color:var(--ink-soft);font-size:13.5px;margin:0 0 18px;line-height:1.6;}
+
+  /* ---- login ---- */
+  .login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,var(--teal-deep),var(--teal) 65%,#0f7a5f);
+    display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
+  .login-box{background:var(--panel);border-radius:18px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.28);}
+  .login-box .plate-mark{margin:0 auto 14px;}
+  .login-box h2{text-align:center;font-size:22px;color:var(--teal-deep);margin-bottom:4px;}
+  .login-box p.subtext{text-align:center;margin-bottom:22px;}
+  .login-box label{font-size:12.5px;font-weight:600;color:var(--ink-soft);display:block;margin:0 0 5px;}
+  .login-box input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:9px;font-size:14px;margin-bottom:14px;}
+  .login-box input:focus{outline:2px solid var(--teal);outline-offset:1px;}
+  .login-box button{width:100%;padding:12px;margin-top:4px;}
+  .login-error{color:var(--danger);font-size:12.5px;margin-top:10px;min-height:16px;text-align:center;}
+  .login-hint{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-soft);line-height:1.7;}
+
+  /* ---- scan tab ---- */
+  .scan-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:22px;}
+  @media(max-width:760px){.scan-grid{grid-template-columns:1fr;}}
+  .cam-wrap{position:relative;background:var(--teal-deep);border-radius:12px;overflow:hidden;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;}
+  .cam-wrap video, .cam-wrap canvas{width:100%;height:100%;object-fit:cover;display:block;}
+  .cam-wrap canvas.capture-preview{position:absolute;inset:0;display:none;}
+  .live-tag{position:absolute;top:12px;left:12px;background:rgba(0,0,0,.55);color:#fff;font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:999px;display:flex;align-items:center;gap:6px;}
+  .live-dot{width:7px;height:7px;border-radius:50%;background:#5FE38C;animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .live-guess{position:absolute;bottom:12px;left:12px;right:12px;background:rgba(7,59,47,.82);color:#fff;padding:10px 14px;border-radius:10px;font-size:13px;}
+  .live-guess b{color:var(--mustard-soft);}
+  .cam-actions{display:flex;gap:10px;margin-top:14px;}
+  .btn{border:none;border-radius:10px;padding:12px 18px;font-family:var(--font-body);font-weight:600;font-size:14px;cursor:pointer;transition:.15s;}
+  .btn-primary{background:var(--teal);color:#fff;}
+  .btn-primary:hover{background:var(--teal-deep);}
+  .btn-primary:disabled{background:#A9B7AE;cursor:not-allowed;}
+  .btn-ghost{background:var(--bg);color:var(--ink);border:1px solid var(--line);}
+  .btn-ghost:hover{background:#e7ebe3;}
+  .btn-danger{background:#fff;color:var(--danger);border:1px solid var(--danger);}
+  .btn-danger:hover{background:var(--danger);color:#fff;}
+
+  .camera-off-banner{background:var(--mustard-soft);border:1px solid var(--mustard);color:#7a5200;font-size:13px;font-weight:600;
+    padding:10px 14px;border-radius:10px;margin-top:12px;display:none;}
+
+  .result-card{border:1px dashed var(--line);border-radius:12px;padding:18px;min-height:120px;display:flex;flex-direction:column;justify-content:center;gap:6px;}
+  .result-card.empty{color:var(--ink-soft);font-size:13.5px;align-items:center;text-align:center;}
+  .result-card .rclass{font-family:var(--font-display);font-size:19px;color:var(--teal-deep);}
+  .result-card .rcredit{font-size:26px;font-weight:700;color:var(--mustard);}
+  .result-card .rprob{font-size:12.5px;color:var(--ink-soft);}
+  .result-card.flag{border-color:var(--danger);}
+  .result-card.flag .rclass{color:var(--danger);}
+
+  .class-row{display:grid;grid-template-columns:1fr 90px;gap:8px;margin-bottom:6px;}
+  .class-row input[type=number]{padding:9px;border:1px solid var(--line);border-radius:8px;font-size:13px;width:100%;}
+  .class-row input[type=text]{padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;width:100%;}
+
+  /* ---- admin ---- */
+  .admin-camera-card{display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--line);
+    border-radius:12px;padding:16px 20px;margin-bottom:6px;}
+  .admin-camera-label{font-size:12.5px;color:var(--ink-soft);font-weight:600;}
+  .admin-camera-status{font-family:var(--font-display);font-size:24px;margin-top:2px;}
+  .admin-camera-status.on{color:var(--teal);}
+  .admin-camera-status.off{color:var(--danger);}
+
+  /* ---- ranking ---- */
+  table.rank{width:100%;border-collapse:collapse;}
+  table.rank th{text-align:left;font-size:12px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;border-bottom:2px solid var(--line);}
+  table.rank td{padding:12px 10px;border-bottom:1px solid var(--line);font-size:14.5px;}
+  table.rank tr.me{background:var(--mustard-soft);}
+  .rank-badge{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;font-weight:700;font-size:13px;color:#fff;background:var(--tray);}
+  .rank-badge.top1{background:#D8A518;}
+  .rank-badge.top2{background:#9AA5A0;}
+  .rank-badge.top3{background:#B3702E;}
+
+  /* ---- shop ---- */
+  .shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;}
+  .item-card{border:1px solid var(--line);border-radius:12px;padding:16px;text-align:center;background:var(--bg);}
+  .item-emoji{font-size:38px;}
+  .item-name{font-family:var(--font-display);font-size:16px;margin:8px 0 2px;}
+  .item-price{color:var(--mustard);font-weight:700;margin-bottom:10px;}
+  .item-card button{width:100%;}
+
+  .inv-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;}
+  .inv-chip{background:var(--teal);color:#fff;padding:6px 12px;border-radius:999px;font-size:12.5px;font-weight:600;}
+
+  /* ---- admin inventory control ---- */
+  .inv-admin-card{border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin-bottom:12px;background:var(--bg);}
+  .inv-admin-card .inv-admin-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .inv-admin-card .inv-admin-head b{font-family:var(--font-display);font-size:16px;color:var(--teal-deep);}
+  .inv-admin-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
+  .inv-admin-item{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px 12px;}
+  .inv-admin-item label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:6px;}
+  .inv-admin-item .stepper{display:flex;align-items:center;gap:6px;}
+  .inv-admin-item .stepper button{width:26px;height:26px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;font-weight:700;color:var(--teal-deep);}
+  .inv-admin-item .stepper button:hover{background:var(--bg);}
+  .inv-admin-item .stepper input{width:100%;text-align:center;padding:5px 4px;border:1px solid var(--line);border-radius:6px;}
+  .inv-admin-save{margin-top:12px;}
+
+  /* ---- esg report ---- */
+  .esg-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;}
+  @media(max-width:700px){.esg-stats{grid-template-columns:1fr;}}
+  .stat-box{background:var(--bg);border-radius:12px;padding:16px;border:1px solid var(--line);}
+  .stat-box .label{font-size:12px;color:var(--ink-soft);}
+  .stat-box .value{font-family:var(--font-display);font-size:24px;color:var(--teal-deep);margin-top:4px;}
+  .edit-hint{font-size:12px;color:var(--ink-soft);background:var(--mustard-soft);display:inline-block;padding:6px 12px;border-radius:8px;margin-bottom:14px;}
+  .edit-hint kbd{background:#fff;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-family:monospace;}
+  .edit-panel{display:none;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:18px;background:var(--bg);}
+  .edit-panel.open{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .edit-panel label{font-size:12.5px;font-weight:600;color:var(--ink-soft);display:block;margin-bottom:6px;}
+  .edit-panel input{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;}
+  canvas#esgChart{max-height:340px;}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--teal-deep);color:#fff;
+    padding:12px 22px;border-radius:999px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:.25s;box-shadow:var(--shadow);z-index:50;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN SCREEN ================= -->
+<div class="login-overlay" id="loginScreen">
+  <div class="login-box">
+    <div class="plate-mark"></div>
+    <h2>비움(VIUM)</h2>
+    <p class="subtext">계정으로 로그인해주세요</p>
+    <label>아이디</label>
+    <input type="text" id="loginId" autocomplete="off">
+    <label>비밀번호</label>
+    <input type="password" id="loginPw" autocomplete="off">
+    <button class="btn btn-primary" id="loginBtn">로그인</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- ================= MAIN APP ================= -->
+<div class="app" id="appRoot" style="display:none;">
+
+  <header class="top">
+    <div class="brand">
+      <div class="plate-mark" id="plateMark"></div>
+      <div>
+        <h1>비움(VIUM)</h1>
+        <p>급식 잔반 절감 ESG 프로젝트</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="user-chip"><b id="userLabel"></b></div>
+      <div class="credit-pill" id="creditPill">🌱 보유 크레딧 <span class="num" id="creditDisplay">0</span></div>
+      <button class="btn btn-danger" id="logoutBtn">로그아웃</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="navTabs">
+    <button data-tab="scan" data-role="student">📷 잔반 판정</button>
+    <button data-tab="admin" data-role="admin">🛠 관리자 제어</button>
+    <button data-tab="rank" data-role="both">🏆 랭킹</button>
+    <button data-tab="shop" data-role="student">🎁 상점</button>
+    <button data-tab="suggest" data-role="student">🍽 급식 건의</button>
+    <button data-tab="esg" data-role="admin">📊 ESG 리포트</button>
+  </nav>
+
+  <!-- ================= SCAN TAB (학생) ================= -->
+  <section class="panel" id="tab-scan" style="display:none;">
+    <h2>식판 촬영 후 판정하기</h2>
+    <p class="subtext">카메라를 식판 위에 비춘 뒤 <b>‘촬영하고 판정하기’</b>를 누르면, 그 순간의 화면으로 잔반 정도를 판별해 크레딧을 지급합니다. 관리자가 카메라를 켠 시간에만 크레딧을 받을 수 있습니다.</p>
+
+    <div class="scan-grid">
+      <div>
+        <div class="cam-wrap">
+          <video id="webcam" autoplay muted playsinline></video>
+          <canvas id="captureCanvas" class="capture-preview"></canvas>
+          <div class="live-tag"><span class="live-dot"></span>실시간 인식 중</div>
+          <div class="live-guess" id="liveGuess">모델 로딩 대기 중…</div>
+        </div>
+        <div class="cam-actions">
+          <button class="btn btn-primary" id="startBtn">카메라 & 모델 시작</button>
+          <button class="btn btn-primary" id="captureBtn" disabled>📸 촬영하고 판정하기</button>
+        </div>
+        <div class="camera-off-banner" id="cameraOffBanner">⛔ 관리자가 카메라를 OFF로 설정했습니다. 지금은 촬영해도 크레딧을 받을 수 없습니다.</div>
+      </div>
+
+      <div>
+        <h3 style="font-size:15px;color:var(--ink-soft);margin-bottom:10px;">판정 결과</h3>
+        <div class="result-card empty" id="resultCard">
+          아직 촬영 결과가 없습니다.<br>카메라를 시작하고 식판을 촬영해보세요.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ADMIN TAB (관리자) ================= -->
+  <section class="panel" id="tab-admin" style="display:none;">
+    <h2>관리자 제어판</h2>
+    <p class="subtext">카메라 사용 여부, 클래스별 지급 크레딧, 모델 URL 및 <b>학생들의 크레딧 현황</b>을 제어합니다. 이 화면은 관리자 계정에만 표시됩니다.</p>
+
+    <div class="admin-camera-card">
+      <div>
+        <div class="admin-camera-label">촬영 크레딧 지급 카메라</div>
+        <div class="admin-camera-status off" id="cameraStatusText">OFF</div>
+      </div>
+      <button class="btn btn-primary" id="cameraToggleBtn">카메라 ON</button>
+    </div>
+
+    <label style="font-size:12.5px;font-weight:600;color:var(--ink-soft);display:block;margin:20px 0 6px;">티처블 머신 모델 URL</label>
+    <input type="text" id="modelUrlAdmin" placeholder="https://teachablemachine.withgoogle.com/models/여기에_모델ID/"
+      style="width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;">
+
+    <label style="font-size:12.5px;font-weight:600;color:var(--ink-soft);display:block;margin:18px 0 6px;">클래스별 지급 크레딧 (모델의 클래스 이름과 정확히 일치해야 합니다)</label>
+    <div id="classCreditRowsAdmin"></div>
+    <button class="btn btn-ghost" id="saveConfigBtnAdmin" style="margin-top:10px;">설정 저장</button>
+
+    <h3 style="font-size:15px;color:var(--ink-soft);margin:28px 0 6px;">👤 회원 관리</h3>
+    <p class="subtext" style="margin-bottom:12px;">새 학생 계정을 추가하거나, 아래 목록에서 계정을 삭제할 수 있습니다.</p>
+    <button class="btn btn-primary" id="showAddAccountBtn">+ 회원 추가</button>
+    <div class="edit-panel" id="addAccountPanel">
+      <div>
+        <label>아이디</label>
+        <input type="text" id="newAccountId" autocomplete="off">
+      </div>
+      <div>
+        <label>비밀번호</label>
+        <input type="text" id="newAccountPw" autocomplete="off">
+      </div>
+      <div style="grid-column:1 / -1;">
+        <button class="btn btn-ghost" id="confirmAddAccountBtn">추가하기</button>
+      </div>
+    </div>
+
+    <h3 style="font-size:15px;color:var(--ink-soft);margin:28px 0 6px;">👥 학생 계정 크레딧 관리</h3>
+    <p class="subtext" style="margin-bottom:12px;">학생 계정의 보유 크레딧과 누적 획득 크레딧(랭킹 반영 기준)을 수정한 후 [저장]을 누르면 즉시 반영됩니다.</p>
+    <table class="rank">
+      <thead><tr><th>학생 아이디</th><th>보유 크레딧</th><th>누적 획득 크레딧(랭킹)</th><th>작업</th></tr></thead>
+      <tbody id="studentStatusBody"></tbody>
+    </table>
+
+    <h3 style="font-size:15px;color:var(--ink-soft);margin:28px 0 6px;">🎒 유저 인벤토리 관리</h3>
+    <p class="subtext" style="margin-bottom:12px;">각 유저가 보유한 물품 수량을 직접 추가·차감·수정할 수 있습니다. 값을 바꾼 후 [저장]을 누르면 즉시 반영됩니다.</p>
+    <div id="studentInventoryAdmin"></div>
+
+    <h3 style="font-size:15px;color:var(--ink-soft);margin:28px 0 6px;">📢 유저 급식 건의함</h3>
+    <p class="subtext" style="margin-bottom:12px;">유저들이 보낸 급식 건의를 아이디와 함께 확인할 수 있습니다.</p>
+    <div id="suggestionAdminList"></div>
+  </section>
+
+  <!-- ================= SUGGEST TAB (학생) ================= -->
+  <section class="panel" id="tab-suggest" style="display:none;">
+    <h2>급식 건의하기</h2>
+    <p class="subtext">잔반을 줄이는 것을 넘어, 먹고 싶은 메뉴나 개선하고 싶은 점을 자유롭게 적어 관리자에게 전달해보세요.</p>
+    <textarea id="suggestText" rows="4" placeholder="건의하고 싶은 메뉴나 의견을 입력해주세요"
+      style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:14px;resize:vertical;"></textarea>
+    <button class="btn btn-primary" id="submitSuggestBtn" style="margin-top:10px;">건의 보내기</button>
+    <h3 style="font-size:15px;color:var(--ink-soft);margin:22px 0 6px;">📝 내가 보낸 건의</h3>
+    <div id="mySuggestList"></div>
+  </section>
+
+  <!-- ================= RANK TAB ================= -->
+  <section class="panel" id="tab-rank" style="display:none;">
+    <h2>잔반 절감 랭킹</h2>
+    <p class="subtext">랭킹은 <b>학생들이 지금까지 누적으로 획득한 크레딧</b> 기준입니다. (관리자 계정 제외)</p>
+    <table class="rank">
+      <thead><tr><th>순위</th><th>아이디</th><th>누적 획득 크레딧</th></tr></thead>
+      <tbody id="rankBody"></tbody>
+    </table>
+  </section>
+
+  <!-- ================= SHOP TAB ================= -->
+  <section class="panel" id="tab-shop" style="display:none;">
+    <h2>크레딧 상점</h2>
+    <p class="subtext">모은 크레딧으로 간식을 교환하세요. 구매한 물품은 아래 인벤토리에 쌓입니다.</p>
+    <div class="shop-grid" id="shopGrid"></div>
+    <h3 style="font-size:15px;color:var(--ink-soft);margin:22px 0 6px;">🎒 내 인벤토리</h3>
+    <div class="inv-list" id="invList"><span class="subtext" style="margin:0;">아직 구매한 물품이 없습니다.</span></div>
+  </section>
+
+  <!-- ================= ESG TAB ================= -->
+  <section class="panel" id="tab-esg" style="display:none;">
+    <h2>ESG 임팩트 리포트</h2>
+    <p class="subtext" id="esgSubtext">촬영 기록을 바탕으로 누적 예산 절감액과 잔반 감소량을 보여줍니다.</p>
+    <div class="edit-hint">그래프 환산 기준을 바꾸려면 키보드 <kbd>/</kbd> 를 누르세요.</div>
+
+    <div class="edit-panel" id="editPanel">
+      <div>
+        <label>크레딧 1당 잔반 감소량 (g)</label>
+        <input type="number" id="gramPerCredit" value="10" min="0">
+      </div>
+      <div>
+        <label>잔반 1g당 절감 예산 (원)</label>
+        <input type="number" id="wonPerGram" value="9" min="0" step="0.1">
+        <p style="font-size:11.5px;color:var(--ink-soft);margin:6px 0 0;">식재료비 + 잔반 처리비를 함께 반영한 값입니다. (10g 감축 시 약 80~100원 절감)</p>
+      </div>
+    </div>
+
+    <div class="esg-stats">
+      <div class="stat-box"><div class="label">총 촬영(판정) 횟수</div><div class="value" id="statScans">0회</div></div>
+      <div class="stat-box"><div class="label">누적 예산 절감액</div><div class="value" id="statWon">0원</div></div>
+      <div class="stat-box"><div class="label">누적 잔반 감소량</div><div class="value" id="statGram">0g</div></div>
+    </div>
+
+    <canvas id="esgChart"></canvas>
+  </section>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ================= Firebase (실시간 동기화용) ================= -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDzQz4Lg_2Jtsf83Plvb5pMYD0gn2fvDCE",
+    authDomain: "rnd1-50e0f.firebaseapp.com",
+    databaseURL: "https://rnd1-50e0f-default-rtdb.firebaseio.com",
+    projectId: "rnd1-50e0f",
+    storageBucket: "rnd1-50e0f.firebasestorage.app",
+    messagingSenderId: "649708031113",
+    appId: "1:649708031113:web:a8a7294dfc28e451714a58"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+</script>
+
+<script>
+/* ============================================================
+   계정 / 권한
+============================================================ */
+const USERS = {
+  'RND1111': { pw:'1234', role:'student' },
+  'RND2222': { pw:'1234', role:'student' },
+  'RND3333': { pw:'1234', role:'student' },
+  'ADMIN':   { pw:'5678', role:'admin' },
+};
+const STUDENT_IDS = ['RND1111','RND2222','RND3333'];
+
+const studentState = {}; // id -> { credit, totalEarned, history:[], inventory:{} }
+STUDENT_IDS.forEach(id=>{
+  studentState[id] = { credit:0, totalEarned:0, history:[], inventory:{}, capturedThisSession:false };
+});
+
+let currentUser = null;   // 예: 'RND1111' 또는 'ADMIN'
+let state = null;         // 현재 로그인한 학생의 credit/history/inventory 참조
+
+/* ============================================================
+   기기(카메라/모델) 상태 — 계정과 무관, 브라우저 탭 단위
+============================================================ */
+const deviceState = { model:null, maxPredictions:0, webcamStream:null };
+let cameraEnabled = false;      // 관리자가 ON/OFF 제어
+let modelUrl = "https://teachablemachine.withgoogle.com/models/FEGcZhPqr/"; // 관리자 편집 가능
+
+let classCredits = {
+  "식판 100%": 0,
+  "식판 50%": 25,
+  "식판 0%": 50,
+  "너무 깨끗한 식판 (악용)": 0,
+  "해당없음": 0,
+};
+
+const SHOP_ITEMS = [
+  { name: "막대사탕", price: 50, emoji: "🍭" },
+  { name: "커피", price: 250, emoji: "☕" },
+  { name: "아이스크림", price: 350, emoji: "🍦" },
+  { name: "치킨", price: 500, emoji: "🍗" },
+  { name: "피자", price: 500, emoji: "🍕" },
+];
+
+/* ============================================================
+   로그인 / 로그아웃
+============================================================ */
+document.getElementById('loginBtn').addEventListener('click', attemptLogin);
+document.getElementById('loginPw').addEventListener('keydown', e=>{ if(e.key==='Enter') attemptLogin(); });
+document.getElementById('loginId').addEventListener('keydown', e=>{ if(e.key==='Enter') attemptLogin(); });
+
+async function attemptLogin(){
+  const idRaw = document.getElementById('loginId').value.trim();
+  const pw = document.getElementById('loginPw').value;
+  const normalized = idRaw.replace(/\s+/g,'').toUpperCase();
+  const matchedKey = Object.keys(USERS).find(k => k === normalized);
+
+  if(!matchedKey || USERS[matchedKey].pw !== pw){
+    document.getElementById('loginError').textContent = '아이디 또는 비밀번호가 올바르지 않습니다.';
+    return;
+  }
+
+  const loginBtnEl = document.getElementById('loginBtn');
+  document.getElementById('loginError').textContent = '로그인 확인 중…';
+  loginBtnEl.disabled = true;
+  const acquired = await tryAcquireSession(matchedKey);
+  loginBtnEl.disabled = false;
+
+  if(!acquired){
+    document.getElementById('loginError').textContent = '⛔ 이미 다른 기기에서 로그인 중인 계정입니다.';
+    return;
+  }
+
+  document.getElementById('loginError').textContent = '';
+  currentUser = matchedKey;
+  document.getElementById('loginId').value = '';
+  document.getElementById('loginPw').value = '';
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appRoot').style.display = 'block';
+  applyRoleUI();
+}
+
+document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+  const leavingUser = currentUser;
+  resetDeviceState();
+  currentUser = null;
+  state = null;
+  document.getElementById('appRoot').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  await releaseSession(leavingUser);
+});
+
+/* 카메라/모델 상태를 완전히 초기화 (계정 전환 시 이전 세션의 모델이 남아
+   촬영 버튼이 부당하게 활성화되는 것을 방지) */
+function resetDeviceState(){
+  if(deviceState.webcamStream){
+    deviceState.webcamStream.getTracks().forEach(t=>t.stop());
+    deviceState.webcamStream = null;
+  }
+  deviceState.model = null;
+  deviceState.maxPredictions = 0;
+  if(livePredictLoop){
+    cancelAnimationFrame(livePredictLoop);
+    livePredictLoop = null;
+  }
+  const video = document.getElementById('webcam');
+  if(video) video.srcObject = null;
+  const liveGuessEl = document.getElementById('liveGuess');
+  if(liveGuessEl) liveGuessEl.textContent = '모델 로딩 대기 중…';
+  const resultCard = document.getElementById('resultCard');
+  if(resultCard){
+    resultCard.classList.add('empty');
+    resultCard.classList.remove('flag');
+    resultCard.innerHTML = '아직 촬영 결과가 없습니다.<br>카메라를 시작하고 식판을 촬영해보세요.';
+  }
+}
+
+function applyRoleUI(){
+  const isAdmin = currentUser === 'ADMIN';
+  document.getElementById('userLabel').textContent = isAdmin ? '관리자 (ADMIN)' : currentUser;
+  document.getElementById('creditPill').style.display = isAdmin ? 'none' : 'flex';
+
+  document.querySelectorAll('nav.tabs button[data-role]').forEach(btn=>{
+    const role = btn.dataset.role;
+    const visible = role === 'both' || (isAdmin && role === 'admin') || (!isAdmin && role === 'student');
+    btn.style.display = visible ? '' : 'none';
+  });
+
+  if(!isAdmin){
+    state = studentState[currentUser];
+    updateCreditDisplay();
+    renderShop();
+    renderInventory();
+    renderMySuggestions();
+    updateStartButtonLabel();
+    updateCaptureAvailability();
+  }else{
+    document.getElementById('modelUrlAdmin').value = modelUrl;
+    renderClassCreditRows();
+    updateCameraStatusUI();
+    renderStudentStatus();
+  }
+
+  switchTab(isAdmin ? 'admin' : 'scan');
+}
+
+/* ============================================================
+   탭 전환
+============================================================ */
+document.querySelectorAll('nav.tabs button[data-role]').forEach(btn=>{
+  btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
+});
+
+function switchTab(tab){
+  document.querySelectorAll('nav.tabs button[data-role]').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
+  ['scan','admin','rank','shop','esg','suggest'].forEach(t=>{
+    const el = document.getElementById('tab-'+t);
+    if(el) el.style.display = (t===tab) ? 'block' : 'none';
+  });
+  renderTabContent(tab);
+}
+
+function renderTabContent(tab){
+  if(tab==='rank') renderRanking();
+  if(tab==='esg') renderESG();
+  if(tab==='admin'){
+    if(!adminInputsFocused()) renderStudentStatus();
+    renderSuggestionAdmin();
+  }
+  if(tab==='suggest') renderMySuggestions();
+  if(tab==='shop'){ renderShop(); renderInventory(); }
+}
+
+/* ============================================================
+   관리자 — 카메라 ON/OFF
+============================================================ */
+document.getElementById('cameraToggleBtn').addEventListener('click', ()=>{
+  const turningOn = !cameraEnabled;
+  cameraEnabled = turningOn;
+
+  if(turningOn){
+    STUDENT_IDS.forEach(id => { studentState[id].capturedThisSession = false; });
+    showToast('📷 카메라를 ON으로 전환했습니다. 학생들은 이번 세션에 1회 촬영할 수 있습니다.');
+  }else{
+    if(deviceState.webcamStream){
+      deviceState.webcamStream.getTracks().forEach(t=>t.stop());
+      deviceState.webcamStream = null;
+    }
+    deviceState.model = null;
+    deviceState.maxPredictions = 0;
+    if(livePredictLoop){
+      cancelAnimationFrame(livePredictLoop);
+      livePredictLoop = null;
+    }
+    const video = document.getElementById('webcam');
+    if(video) video.srcObject = null;
+    const startBtnEl = document.getElementById('startBtn');
+    if(startBtnEl) startBtnEl.textContent = '카메라 & 모델 시작';
+    const liveGuessEl = document.getElementById('liveGuess');
+    if(liveGuessEl) liveGuessEl.textContent = '관리자가 카메라를 OFF로 설정했습니다. ON이 될 때까지 카메라를 사용할 수 없습니다.';
+    showToast('⛔ 카메라를 OFF로 전환했습니다. 관리자가 다시 켤 때까지 학생은 카메라를 사용할 수 없습니다.');
+  }
+
+  updateCameraStatusUI();
+  pushCloudState();
+});
+function updateCameraStatusUI(){
+  const statusEl = document.getElementById('cameraStatusText');
+  statusEl.textContent = cameraEnabled ? 'ON' : 'OFF';
+  statusEl.classList.toggle('on', cameraEnabled);
+  statusEl.classList.toggle('off', !cameraEnabled);
+  document.getElementById('cameraToggleBtn').textContent = cameraEnabled ? '카메라 OFF' : '카메라 ON';
+  updateCaptureAvailability();
+}
+
+/* ============================================================
+   관리자 — 클래스별 크레딧 / 모델 URL 설정
+============================================================ */
+function renderClassCreditRows(){
+  const wrap = document.getElementById('classCreditRowsAdmin');
+  wrap.innerHTML = '';
+  Object.entries(classCredits).forEach(([cls, credit])=>{
+    const row = document.createElement('div');
+    row.className = 'class-row';
+    row.innerHTML = `
+      <input type="text" class="cls-name" value="${cls}">
+      <input type="number" class="cls-credit" value="${credit}">
+    `;
+    wrap.appendChild(row);
+  });
+}
+
+document.getElementById('saveConfigBtnAdmin').addEventListener('click', ()=>{
+  const names = document.querySelectorAll('#classCreditRowsAdmin .cls-name');
+  const credits = document.querySelectorAll('#classCreditRowsAdmin .cls-credit');
+  const newMap = {};
+  names.forEach((el,i)=>{ newMap[el.value.trim()] = Number(credits[i].value)||0; });
+  classCredits = newMap;
+
+  const newUrl = document.getElementById('modelUrlAdmin').value.trim();
+  if(newUrl) modelUrl = newUrl;
+
+  deviceState.model = null; 
+  showToast('설정을 저장했습니다. 학생 화면에서는 카메라를 다시 시작하면 반영됩니다.');
+  pushCloudState();
+});
+
+/* ============================================================
+   학생 현황 (관리자용 제어 기능)
+============================================================ */
+function renderStudentStatus(){
+  const body = document.getElementById('studentStatusBody');
+  if(!body) return;
+  body.innerHTML = '';
+  STUDENT_IDS.forEach(id=>{
+    const s = studentState[id];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><b>${id}</b></td>
+      <td><input type="number" class="admin-credit-input" data-id="${id}" value="${s.credit}" style="width:90px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;"> 크레딧</td>
+      <td><input type="number" class="admin-total-input" data-id="${id}" value="${s.totalEarned}" style="width:90px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;"> 크레딧</td>
+      <td>
+        <button class="btn btn-ghost admin-save-student" data-id="${id}" style="padding:6px 14px;">저장</button>
+        <button class="btn btn-danger admin-delete-student" data-id="${id}" style="padding:6px 14px;">삭제</button>
+      </td>
+    `;
+    body.appendChild(tr);
+  });
+  document.querySelectorAll('.admin-save-student').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.id;
+      const creditInput = document.querySelector(`.admin-credit-input[data-id="${id}"]`);
+      const totalInput = document.querySelector(`.admin-total-input[data-id="${id}"]`);
+      const newCredit = Number(creditInput.value);
+      const newTotal = Number(totalInput.value);
+      studentState[id].credit = isNaN(newCredit) ? studentState[id].credit : newCredit;
+      studentState[id].totalEarned = isNaN(newTotal) ? studentState[id].totalEarned : newTotal;
+      showToast(`[${id}] 계정의 크레딧을 수정했습니다. (보유 ${studentState[id].credit} / 누적 ${studentState[id].totalEarned})`);
+      
+      if(currentUser === id){
+        updateCreditDisplay();
+        renderInventory();
+      }
+      renderRanking();
+      pushCloudState();
+    });
+  });
+  document.querySelectorAll('.admin-delete-student').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.id;
+      if(!confirm(`[${id}] 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) return;
+      delete USERS[id];
+      const idx = STUDENT_IDS.indexOf(id);
+      if(idx > -1) STUDENT_IDS.splice(idx, 1);
+      delete studentState[id];
+      showToast(`[${id}] 계정을 삭제했습니다.`);
+      renderStudentStatus();
+      renderRanking();
+      pushCloudState();
+    });
+  });
+  renderStudentInventoryAdmin();
+}
+
+/* ============================================================
+   회원 관리 (관리자용 — 계정 추가)
+============================================================ */
+document.getElementById('showAddAccountBtn').addEventListener('click', ()=>{
+  document.getElementById('addAccountPanel').classList.toggle('open');
+});
+
+document.getElementById('confirmAddAccountBtn').addEventListener('click', ()=>{
+  const idRaw = document.getElementById('newAccountId').value.trim();
+  const pw = document.getElementById('newAccountPw').value;
+  const id = idRaw.replace(/\s+/g,'').toUpperCase();
+
+  if(!id || !pw){
+    showToast('아이디와 비밀번호를 모두 입력해주세요.');
+    return;
+  }
+  if(id === 'ADMIN' || USERS[id]){
+    showToast('이미 존재하는 아이디입니다.');
+    return;
+  }
+
+  USERS[id] = { pw, role:'student' };
+  STUDENT_IDS.push(id);
+  studentState[id] = { credit:0, totalEarned:0, history:[], inventory:{}, capturedThisSession:false };
+
+  document.getElementById('newAccountId').value = '';
+  document.getElementById('newAccountPw').value = '';
+  document.getElementById('addAccountPanel').classList.remove('open');
+  showToast(`[${id}] 계정을 추가했습니다.`);
+  renderStudentStatus();
+  renderRanking();
+  pushCloudState();
+});
+
+/* ============================================================
+   학생 인벤토리 관리 (관리자용 제어 기능)
+============================================================ */
+function renderStudentInventoryAdmin(){
+  const wrap = document.getElementById('studentInventoryAdmin');
+  if(!wrap) return;
+  wrap.innerHTML = '';
+
+  // 상점 물품 + 학생이 이미 보유 중인(상점 목록 외) 물품까지 모두 관리 대상으로 포함
+  const itemNames = new Set(SHOP_ITEMS.map(i=>i.name));
+  STUDENT_IDS.forEach(id=>{
+    if(!studentState[id].inventory) studentState[id].inventory = {}; // 데이터 누락 방어
+    Object.keys(studentState[id].inventory).forEach(n=>itemNames.add(n));
+  });
+
+  STUDENT_IDS.forEach(id=>{
+    const s = studentState[id];
+    const card = document.createElement('div');
+    card.className = 'inv-admin-card';
+    const itemsHtml = Array.from(itemNames).map(name=>{
+      const emoji = (SHOP_ITEMS.find(i=>i.name===name) || {}).emoji || '🎁';
+      const qty = (s.inventory || {})[name] || 0;
+      return `
+        <div class="inv-admin-item">
+          <label>${emoji} ${name}</label>
+          <div class="stepper">
+            <button type="button" class="inv-step-minus" data-id="${id}" data-item="${name}">−</button>
+            <input type="number" min="0" class="inv-admin-qty" data-id="${id}" data-item="${name}" value="${qty}">
+            <button type="button" class="inv-step-plus" data-id="${id}" data-item="${name}">+</button>
+          </div>
+        </div>`;
+    }).join('');
+    card.innerHTML = `
+      <div class="inv-admin-head"><b>${id}</b> 인벤토리</div>
+      <div class="inv-admin-items">${itemsHtml}</div>
+      <button class="btn btn-ghost inv-admin-save" data-id="${id}">저장</button>
+    `;
+    wrap.appendChild(card);
+  });
+
+  wrap.querySelectorAll('.inv-step-minus').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const input = wrap.querySelector(`.inv-admin-qty[data-id="${btn.dataset.id}"][data-item="${btn.dataset.item}"]`);
+      input.value = Math.max(0, (Number(input.value)||0) - 1);
+    });
+  });
+  wrap.querySelectorAll('.inv-step-plus').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const input = wrap.querySelector(`.inv-admin-qty[data-id="${btn.dataset.id}"][data-item="${btn.dataset.item}"]`);
+      input.value = (Number(input.value)||0) + 1;
+    });
+  });
+  wrap.querySelectorAll('.inv-admin-save').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.id;
+      const inputs = wrap.querySelectorAll(`.inv-admin-qty[data-id="${id}"]`);
+      const newInventory = {};
+      inputs.forEach(inp=>{
+        const qty = Math.max(0, Number(inp.value) || 0);
+        if(qty > 0) newInventory[inp.dataset.item] = qty;
+      });
+      studentState[id].inventory = newInventory;
+      showToast(`[${id}] 계정의 인벤토리를 수정했습니다.`);
+      if(currentUser === id) renderInventory();
+      pushCloudState();
+    });
+  });
+}
+
+/* ============================================================
+   티처블 머신 + 웹캠 (학생용)
+============================================================ */
+let livePredictLoop = null;
+
+async function startAll(){
+  const base = modelUrl.endsWith('/') ? modelUrl : modelUrl + '/';
+  const modelURL = base + 'model.json';
+  const metadataURL = base + 'metadata.json';
+
+  document.getElementById('liveGuess').textContent = '모델 불러오는 중…';
+
+  try{
+    deviceState.model = await tmImage.load(modelURL, metadataURL);
+    deviceState.maxPredictions = deviceState.model.getTotalClasses();
+  }catch(err){
+    document.getElementById('liveGuess').textContent =
+      '⚠ 모델을 불러오지 못했습니다. 관리자에게 티처블 머신 모델 URL 확인을 요청해주세요.';
+    console.error(err);
+    return;
+  }
+
+  const video = document.getElementById('webcam');
+  if(!deviceState.webcamStream){
+    if(!window.isSecureContext){
+      document.getElementById('liveGuess').innerHTML =
+        '⚠ 카메라는 <b>https</b> 주소 또는 <b>localhost</b>에서만 동작합니다.';
+      return;
+    }
+    try{
+      deviceState.webcamStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' } } });
+    }catch(err1){
+      try{
+        deviceState.webcamStream = await navigator.mediaDevices.getUserMedia({ video:true });
+      }catch(err2){
+        console.error(err2);
+        document.getElementById('liveGuess').textContent = '⚠ 카메라를 시작할 수 없습니다. 브라우저 카메라 권한을 확인해주세요.';
+        return;
+      }
+    }
+    video.srcObject = deviceState.webcamStream;
+    try{ await video.play(); }catch(e){}
+  }
+
+  updateCaptureAvailability();
+
+  if(livePredictLoop) cancelAnimationFrame(livePredictLoop);
+  liveLoop();
+}
+
+async function liveLoop(){
+  if(deviceState.model && document.getElementById('webcam').readyState >= 2){
+    const preds = await deviceState.model.predict(document.getElementById('webcam'));
+    preds.sort((a,b)=>b.probability-a.probability);
+    const top = preds[0];
+    document.getElementById('liveGuess').innerHTML =
+      `현재 예측: <b>${top.className}</b> (${(top.probability*100).toFixed(1)}%)`;
+  }
+  livePredictLoop = requestAnimationFrame(liveLoop);
+}
+
+document.getElementById('startBtn').addEventListener('click', ()=>{
+  if(!cameraEnabled){
+    showToast('⛔ 관리자가 카메라를 OFF로 설정했습니다.');
+    return;
+  }
+  startAll();
+});
+
+function updateStartButtonLabel(){
+  const btn = document.getElementById('startBtn');
+  if(!btn) return;
+  btn.textContent = deviceState.webcamStream ? '모델 다시 불러오기' : '카메라 & 모델 시작';
+}
+
+function updateCaptureAvailability(){
+  const startBtn = document.getElementById('startBtn');
+  const captureBtn = document.getElementById('captureBtn');
+  const banner = document.getElementById('cameraOffBanner');
+  if(!captureBtn) return;
+
+  if(startBtn) startBtn.disabled = !cameraEnabled;
+  updateStartButtonLabel();
+
+  const alreadyCaptured = !!(state && state.capturedThisSession);
+  captureBtn.disabled = !(deviceState.model && cameraEnabled) || alreadyCaptured;
+
+  if(banner){
+    if(!cameraEnabled){
+      banner.style.display = 'block';
+      banner.textContent = '⛔ 관리자가 카메라를 OFF로 설정했습니다. 관리자가 다시 ON으로 전환할 때까지 카메라를 시작하거나 촬영할 수 없습니다.';
+    }else if(alreadyCaptured){
+      banner.style.display = 'block';
+      banner.textContent = '✅ 이번 세션에 이미 촬영을 완료했습니다. 다음 촬영은 관리자가 카메라를 껐다가 다시 켤 때 가능합니다.';
+    }else{
+      banner.style.display = 'none';
+    }
+  }
+}
+
+document.getElementById('captureBtn').addEventListener('click', async ()=>{
+  if(!deviceState.model) return;
+  if(!cameraEnabled){
+    showToast('⛔ 관리자가 카메라를 OFF로 설정했습니다.');
+    return;
+  }
+  if(state.capturedThisSession){
+    showToast('이미 이번 세션에 촬영을 완료했습니다.');
+    return;
+  }
+  const video = document.getElementById('webcam');
+  const canvas = document.getElementById('captureCanvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const preds = await deviceState.model.predict(canvas);
+  preds.sort((a,b)=>b.probability-a.probability);
+  const top = preds[0];
+
+  const credit = classCredits.hasOwnProperty(top.className) ? classCredits[top.className] : 0;
+  state.credit += credit;
+  state.totalEarned += credit;
+  state.capturedThisSession = true;
+  state.history.push({ time: new Date(), className: top.className, credit });
+
+  updateCreditDisplay();
+  updateCaptureAvailability();
+  renderResultCard(top, credit);
+  pushCloudState();
+  if(credit > 0){
+    showToast(`🎉 "${top.className}" 판정! +${credit} 크레딧 지급 (이번 세션 촬영 완료)`);
+  }else{
+    showToast(`"${top.className}" 판정 — 지급 크레딧 없음 (이번 세션 촬영 완료)`);
+  }
+});
+
+function renderResultCard(top, credit){
+  const card = document.getElementById('resultCard');
+  card.classList.remove('empty');
+  const isFlag = credit === 0 && top.className.includes('악용');
+  card.classList.toggle('flag', isFlag);
+  card.innerHTML = `
+    <div class="rclass">${top.className}</div>
+    <div class="rcredit">+${credit} 크레딧</div>
+    <div class="rprob">인식 신뢰도 ${(top.probability*100).toFixed(1)}%</div>
+    ${isFlag ? '<div class="rprob" style="color:var(--danger);">⚠ 부정 이용 방지 클래스로 분류되어 크레딧이 지급되지 않았습니다.</div>' : ''}
+  `;
+}
+
+/* ============================================================
+   크레딧 표시 / 토스트
+============================================================ */
+function updateCreditDisplay(){
+  if(!state) return;
+  document.getElementById('creditDisplay').textContent = state.credit;
+  const pct = Math.min(state.credit / 500, 1) * 360;
+  document.getElementById('plateMark').style.background =
+    `conic-gradient(var(--mustard) ${pct}deg, var(--teal) ${pct}deg)`;
+  renderShop();
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+/* ============================================================
+   랭킹 — 관리자(ADMIN)를 제외하고 학생계정(STUDENT_IDS)만 표시
+============================================================ */
+function renderRanking(){
+  const list = STUDENT_IDS.map(id => ({
+    name: id,
+    credit: studentState[id].totalEarned,
+    me: id === currentUser,
+  }));
+  list.sort((a,b)=>b.credit - a.credit);
+  const body = document.getElementById('rankBody');
+  body.innerHTML = '';
+  list.forEach((u, i)=>{
+    const rank = i+1;
+    const badgeClass = rank===1?'top1':rank===2?'top2':rank===3?'top3':'';
+    const tr = document.createElement('tr');
+    if(u.me) tr.className = 'me';
+    tr.innerHTML = `
+      <td><span class="rank-badge ${badgeClass}">${rank}</span></td>
+      <td>${u.name}${u.me ? ' (나)' : ''}</td>
+      <td>${u.credit} 크레딧</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+/* ============================================================
+   상점
+============================================================ */
+function renderShop(){
+  const grid = document.getElementById('shopGrid');
+  if(!grid || !state) return;
+  grid.innerHTML = '';
+  SHOP_ITEMS.forEach(item=>{
+    const card = document.createElement('div');
+    card.className = 'item-card';
+    card.innerHTML = `
+      <div class="item-emoji">${item.emoji}</div>
+      <div class="item-name">${item.name}</div>
+      <div class="item-price">${item.price} 크레딧</div>
+      <button class="btn btn-primary" ${state.credit < item.price ? 'disabled' : ''}>교환하기</button>
+    `;
+    card.querySelector('button').addEventListener('click', ()=>buyItem(item));
+    grid.appendChild(card);
+  });
+}
+function buyItem(item){
+  if(state.credit < item.price){
+    showToast('크레딧이 부족합니다.');
+    return;
+  }
+  state.credit -= item.price;
+  if(!state.inventory) state.inventory = {}; // 데이터 누락 방어
+  state.inventory[item.name] = (state.inventory[item.name]||0) + 1;
+  updateCreditDisplay();
+  renderInventory();
+  showToast(`${item.emoji} ${item.name} 교환 완료!`);
+  pushCloudState();
+}
+function renderInventory(){
+  const wrap = document.getElementById('invList');
+  if(!wrap || !state) return;
+  const entries = Object.entries(state.inventory || {});
+  if(entries.length===0){
+    wrap.innerHTML = '<span class="subtext" style="margin:0;">아직 구매한 물품이 없습니다.</span>';
+    return;
+  }
+  wrap.innerHTML = entries.map(([name,count])=>`<span class="inv-chip">${name} × ${count}</span>`).join('');
+}
+
+/* ============================================================
+   급식 건의 (학생 → 관리자)
+============================================================ */
+let suggestions = []; // { id, text, time }
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+document.getElementById('submitSuggestBtn').addEventListener('click', ()=>{
+  const textEl = document.getElementById('suggestText');
+  const text = textEl.value.trim();
+  if(!text){
+    showToast('건의할 내용을 입력해주세요.');
+    return;
+  }
+  suggestions.push({ id: currentUser, text, time: new Date() });
+  textEl.value = '';
+  showToast('🍽 건의가 관리자에게 전송되었습니다!');
+  renderMySuggestions();
+  pushCloudState();
+});
+
+function renderMySuggestions(){
+  const wrap = document.getElementById('mySuggestList');
+  if(!wrap || !currentUser) return;
+  const mine = suggestions.filter(s=>s.id===currentUser).sort((a,b)=>b.time-a.time);
+  if(mine.length===0){
+    wrap.innerHTML = '<span class="subtext" style="margin:0;">아직 보낸 건의가 없습니다.</span>';
+    return;
+  }
+  wrap.innerHTML = mine.map(s=>`
+    <div style="border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:8px;background:var(--bg);">
+      <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:4px;">${s.time.toLocaleString()}</div>
+      <div style="font-size:13.5px;">${escapeHtml(s.text)}</div>
+    </div>`).join('');
+}
+
+function renderSuggestionAdmin(){
+  const wrap = document.getElementById('suggestionAdminList');
+  if(!wrap) return;
+  if(suggestions.length===0){
+    wrap.innerHTML = '<span class="subtext" style="margin:0;">아직 접수된 건의가 없습니다.</span>';
+    return;
+  }
+  const sorted = [...suggestions].sort((a,b)=>b.time-a.time);
+  wrap.innerHTML = sorted.map(s=>`
+    <div style="border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-bottom:8px;background:var(--bg);">
+      <div style="font-size:12px;color:var(--ink-soft);margin-bottom:4px;"><b style="color:var(--teal-deep);">${s.id}</b> · ${s.time.toLocaleString()}</div>
+      <div style="font-size:13.5px;">${escapeHtml(s.text)}</div>
+    </div>`).join('');
+}
+
+/* ============================================================
+   ESG 리포트
+============================================================ */
+let esgChart = null;
+let esgConfig = { gramPerCredit: 10, wonPerGram: 9 }; // 잔반 1g당 9원 (식재료비+잔반 처리비 반영, 10g당 약 80~100원)
+
+document.getElementById('gramPerCredit').addEventListener('input', e=>{
+  esgConfig.gramPerCredit = Number(e.target.value)||0;
+  renderESG();
+});
+document.getElementById('wonPerGram').addEventListener('input', e=>{
+  esgConfig.wonPerGram = Number(e.target.value)||0;
+  renderESG();
+});
+
+document.addEventListener('keydown', (e)=>{
+  const tag = document.activeElement.tagName;
+  if(e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA' && currentUser){
+    e.preventDefault();
+    document.getElementById('editPanel').classList.toggle('open');
+  }
+});
+
+function getReportHistory(){
+  // ESG 리포트는 관리자만 접근 가능 — 전체 학생의 기록을 합산해서 보여준다.
+  return STUDENT_IDS.flatMap(id => studentState[id].history).sort((a,b)=>a.time - b.time);
+}
+
+function renderESG(){
+  document.getElementById('esgSubtext').textContent = '전체 학생의 촬영 기록을 합산한 촬영 횟수, 누적 예산 절감액, 누적 잔반 감소량입니다.';
+
+  const history = getReportHistory();
+  const labels = history.map((h,i)=>`#${i+1}`);
+  let cumGram = 0, cumWon = 0;
+  const scanData = [], wonData = [], gramData = [];
+  history.forEach((h,i)=>{
+    const gramReduced = h.credit * esgConfig.gramPerCredit;
+    cumGram += gramReduced;
+    cumWon += gramReduced * esgConfig.wonPerGram;
+    scanData.push(i+1);
+    wonData.push(Math.round(cumWon));
+    gramData.push(cumGram);
+  });
+
+  document.getElementById('statScans').textContent = history.length + '회';
+  document.getElementById('statWon').textContent = Math.round(cumWon).toLocaleString() + '원';
+  document.getElementById('statGram').textContent = (cumGram/1000).toFixed(2) + 'kg';
+
+  const ctx = document.getElementById('esgChart').getContext('2d');
+  const data = {
+    labels: labels.length? labels : ['기록 없음'],
+    datasets: [
+      {
+        label: '총 촬영 횟수 (회)',
+        data: scanData.length? scanData : [0],
+        borderColor: '#D93636',
+        backgroundColor: 'rgba(217,54,54,0.10)',
+        yAxisID: 'y2',
+        tension: 0.3,
+        fill: false,
+      },
+      {
+        label: '누적 예산 절감액 (원)',
+        data: wonData.length? wonData : [0],
+        borderColor: '#2563EB',
+        backgroundColor: 'rgba(37,99,235,0.12)',
+        yAxisID: 'y',
+        tension: 0.3,
+        fill: true,
+      },
+      {
+        label: '누적 잔반 감소량 (g)',
+        data: gramData.length? gramData : [0],
+        borderColor: '#16A34A',
+        backgroundColor: 'rgba(22,163,74,0.12)',
+        yAxisID: 'y1',
+        tension: 0.3,
+        fill: true,
+      }
+    ]
+  };
+  const options = {
+    responsive:true,
+    interaction:{ mode:'index', intersect:false },
+    scales:{
+      y:{ type:'linear', position:'left', title:{ display:true, text:'누적 예산 절감액 (원)', color:'#2563EB' }, ticks:{ color:'#2563EB' } },
+      y1:{ type:'linear', position:'right', title:{ display:true, text:'누적 잔반 감소량 (g)', color:'#16A34A' }, ticks:{ color:'#16A34A' }, grid:{ drawOnChartArea:false } },
+      y2:{ type:'linear', display:false, grid:{ drawOnChartArea:false } }
+    },
+    plugins:{ legend:{ position:'bottom' } }
+  };
+
+  if(esgChart){
+    esgChart.data = data;
+    esgChart.options = options;
+    esgChart.update();
+  }else{
+    esgChart = new Chart(ctx, { type:'line', data, options });
+  }
+}
+
+/* ============================================================
+   실시간 동기화 & 중복 로그인 방지 (Firebase Realtime Database)
+============================================================ */
+let mySessionToken = null;
+let mySessionRef = null;
+let mySessionCb = null;
+
+function genToken(){
+  if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'tok_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+function serializeState(){
+  const raw = {
+    USERS, STUDENT_IDS, studentState, suggestions,
+    cameraEnabled, modelUrl, classCredits, esgConfig,
+    updatedAt: Date.now(),
+  };
+  // Firebase Realtime Database는 Date 객체를 직접 저장할 수 없으므로
+  // (history/suggestions 안의 Date 필드 때문에 저장이 통째로 실패하던 원인),
+  // JSON 왕복으로 모든 값을 순수 문자열/숫자로 변환해서 넘긴다.
+  return JSON.parse(JSON.stringify(raw));
+}
+
+function pushCloudState(){
+  if(!db) return;
+  try{
+    db.ref('vium/state').set(serializeState()).catch(err=>console.warn('Firebase 저장 실패:', err));
+  }catch(err){
+    console.warn('Firebase 저장 실패(값 오류):', err);
+  }
+}
+
+function applyRemoteState(remote){
+  if(!remote) return;
+
+  Object.keys(USERS).forEach(k=>{ if(k!=='ADMIN' && !(remote.USERS && remote.USERS[k])) delete USERS[k]; });
+  Object.assign(USERS, remote.USERS || {});
+
+  STUDENT_IDS.length = 0;
+  (remote.STUDENT_IDS || []).forEach(id=>STUDENT_IDS.push(id));
+
+  Object.keys(studentState).forEach(k=>{ if(!(remote.studentState && remote.studentState[k])) delete studentState[k]; });
+  Object.entries(remote.studentState || {}).forEach(([id, s])=>{
+    studentState[id] = {
+      ...s,
+      history: (s.history || []).map(h=>({ ...h, time: new Date(h.time) })),
+      inventory: s.inventory || {}, // Firebase는 빈 객체({})를 저장하지 않고 지우므로, 불러올 때 없으면 빈 객체로 복원
+    };
+  });
+
+  suggestions = (remote.suggestions || []).map(s=>({ ...s, time: new Date(s.time) }));
+  cameraEnabled = !!remote.cameraEnabled;
+  if(remote.modelUrl) modelUrl = remote.modelUrl;
+  if(remote.classCredits) classCredits = remote.classCredits;
+  if(remote.esgConfig) esgConfig = remote.esgConfig;
+
+  if(currentUser && currentUser !== 'ADMIN'){
+    state = studentState[currentUser] || state;
+  }
+}
+
+function adminInputsFocused(){
+  const el = document.activeElement;
+  return !!(el && el.closest && el.closest('#studentStatusBody, #studentInventoryAdmin, #addAccountPanel, #classCreditRowsAdmin'));
+}
+
+/* ---- 상태 실시간 구독: 어떤 기기든 상태가 바뀌면 즉시 반영 ---- */
+db.ref('vium/state').on('value', snap=>{
+  const remote = snap.val();
+  if(remote){
+    applyRemoteState(remote);
+  }else if(!remote && currentUser){
+    // 클라우드에 아직 데이터가 없는 최초 실행 상태 — 현재 화면의 값을 기준으로 올림
+    pushCloudState();
+  }
+  const activeTab = document.querySelector('nav.tabs button.active')?.dataset.tab;
+  if(activeTab) renderTabContent(activeTab);
+  if(currentUser && currentUser !== 'ADMIN'){
+    updateCreditDisplay();
+    renderInventory();
+  }
+});
+
+/* ---- 중복 로그인 방지: 트랜잭션으로 원자적 선점 + 연결 끊기면 자동 해제 ---- */
+function tryAcquireSession(id){
+  return new Promise(resolve=>{
+    const token = genToken();
+    const ref = db.ref('vium/sessions/'+id);
+    ref.transaction(current=>{
+      if(current && current.token) return; // 이미 다른 기기가 점유 중 — 중단
+      return { token, ts: Date.now() };
+    }, (error, committed)=>{
+      if(error || !committed){ resolve(false); return; }
+      mySessionToken = token;
+      mySessionRef = ref;
+      ref.onDisconnect().remove(); // 네트워크 끊김/탭 종료 시 자동으로 세션 반납
+      mySessionCb = ref.on('value', snap=>{
+        const val = snap.val();
+        if(currentUser === id && (!val || val.token !== mySessionToken)){
+          forceLogout();
+        }
+      });
+      resolve(true);
+    });
+  });
+}
+
+function releaseSession(id){
+  if(!id || !mySessionRef) return Promise.resolve();
+  if(mySessionCb) mySessionRef.off('value', mySessionCb);
+  mySessionRef.onDisconnect().cancel();
+  const p = mySessionRef.remove().catch(()=>{});
+  mySessionRef = null;
+  mySessionCb = null;
+  mySessionToken = null;
+  return p;
+}
+
+function forceLogout(){
+  if(!currentUser) return;
+  resetDeviceState();
+  currentUser = null;
+  state = null;
+  document.getElementById('appRoot').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  alert('다른 기기에서 같은 계정으로 로그인되어 자동으로 로그아웃되었습니다.');
+}
+</script>
+</body>
+</html>
